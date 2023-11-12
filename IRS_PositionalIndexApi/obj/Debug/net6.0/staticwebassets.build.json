@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "3NiFz2ulSYLnGmeG3EXQX3aWWFvKv/f+pAHUOa2qtjc=",
+  "Source": "IRS_PositionalIndexApi",
+  "BasePath": "_content/IRS_PositionalIndexApi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
