@@ -71,36 +71,55 @@ namespace IRS_PositionalIndexApi.Controllers
         public IActionResult SearchDocIdtxt(string srchtxt)
         {
             if (string.IsNullOrEmpty(srchtxt))
-                return BadRequest("Search text cannot be empty.");
+                return BadRequest("Search text cannot be empt.");
 
-            var srchtxtKey = srchtxt.ToLower().Split(new[] { ' ', '.', '!', '?', ',' }, StringSplitOptions.RemoveEmptyEntries);
-            List<string> res = new List<string>();
-            if (srchtxtKey.Length == 1)
+            var srchtxtKey = Split(srchtxt);
+
+            if (Regex.IsMatch(srchtxtKey[0], @"\/\d+"))
+                return BadRequest($"The search text: '{srchtxt}' cannot start with '{srchtxtKey[0]}'.");
+            List<int> res = null;
+            if (srchtxtKey.Count() == 1)
             {
-                
+
+
                 if (positionalIndex.ContainsKey(srchtxtKey[0]))
                 {
-                    foreach(var item in positionalIndex[srchtxtKey[0]])
+                    foreach (var item in positionalIndex[srchtxtKey[0]])
                     {
-                        res.Add(documents[item.Key].Text);
+                        res.Add(item.Key);
                     }
                 }
-                return Ok(res);
+                return Ok(res == null ? new List<int>() : res);
             }
-            int i = CountSpacesAndNumericTemplates(srchtxt);
-            while(i > 0) 
-            {
-                //TO DO
-                i--;
-            }
-                
 
-            return Ok(SearchWithDistance(srchtxtKey[0], srchtxtKey[1], distance));
+            for (int i = 0; i <= srchtxtKey.Count - 3; i += 2)
+            {
+
+
+                if (res == null)
+                {
+                    // If result is null, initialize it with the document IDs from the first term
+                    int numericValue = int.Parse(Regex.Match(srchtxtKey[i + 1], @"\d+").Value);
+                    res = SearchWithDistance(srchtxtKey[i], srchtxtKey[i + 2], numericValue);
+                }
+                else
+                {
+                    // Find the intersection of the current result and the document IDs for the current term
+                    int numericValue = int.Parse(Regex.Match(srchtxtKey[i + 1], @"\d+").Value);
+                    res = Intersect<int>(res, SearchWithDistance(srchtxtKey[i], srchtxtKey[i + 2], numericValue));
+                    if (res.Count() == 0)
+                    {
+                        // If a term is not found, return a bad request with the missing term
+                        return BadRequest($"No occurrences of '{srchtxt}' found.");
+                    }
+                }
+            }
+            return Ok(res);
+
         }
-        List<string> SearchWithDistance(string word1, string word2, int distance)
+        List<int> SearchWithDistance(string word1, string word2, int distance)
         {
-            // Implement the search logic here.
-            List<string> result = new List<string>();
+            List<int> result = new List<int>();
 
             if (!positionalIndex.ContainsKey(word1) || !positionalIndex.ContainsKey(word2))
             {
@@ -122,7 +141,7 @@ namespace IRS_PositionalIndexApi.Controllers
                         {
                             if (Math.Abs(pos1 - pos2) == distance)
                             {
-                                result.Add($"{docId}: Word '{word1}' at position {pos1}, Word '{word2}' at position {pos2}");
+                                result.Add(docId);
                             }
                         }
                     }
@@ -131,13 +150,47 @@ namespace IRS_PositionalIndexApi.Controllers
 
             return result;
         }
-        int CountSpacesAndNumericTemplates(string input)
+        public static List<T> Intersect<T>(List<T> list1, List<T> list2)
         {
+            var set = new HashSet<T>(list2);
+            var result = new List<T>();
 
-            // Count occurrences of numeric templates using regex
-            int templateCount = Regex.Matches(input, @"\/\d+").Count;
+            foreach (var item in list1)
+                if (set.Contains(item))
+                    result.Add(item);
 
-            return input.Count(Char.IsWhiteSpace) - templateCount;
+            return result;
+        }
+        List<string> Split(string s)
+        {
+            List<string> result = new List<string>();
+            var srchtxtKey = s.ToLower().Split(new[] { ' ', '.', '!', '?', ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            result.Add(srchtxtKey[0]);
+            for (int i = 1; i< srchtxtKey.Count(); i++)
+            {
+                if (Regex.IsMatch(srchtxtKey[i], @"\/\d+"))
+                {
+                    // If the part is a numeric template, add it to the result array
+                    result.Add(srchtxtKey[i]);
+                }
+                else 
+                {
+                    if(!Regex.IsMatch(srchtxtKey[i - 1], @"\/\d+"))
+                    {
+                        result.Add("/1");
+                        result.Add(srchtxtKey[i]);
+
+                    }
+                    else
+                    {
+                        result.Add(srchtxtKey[i]);
+                    }
+                    
+
+                }
+            }
+            return result;
         }
     }
 }
